@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerAdminClient } from '@/lib/supabase/server';
-import { isSupabaseConfigured } from '@/lib/supabase/client';
-import { serverStore } from '@/lib/serverStore';
+import { localDb } from '@/lib/db';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
 
 function checkAdminAuth(req: NextRequest): boolean {
@@ -10,40 +8,29 @@ function checkAdminAuth(req: NextRequest): boolean {
   return verifyAdminToken(cookieToken || headerToken);
 }
 
-// GET /api/members/[id]
+// GET /api/members/[id] - Ambil satu anggota dari SQLite Lokal
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const { id } = params;
-
-  if (isSupabaseConfigured()) {
-    const supabase = createServerAdminClient();
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('family_members')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (!error && data) {
-        return NextResponse.json({ success: true, data });
-      }
+  try {
+    const member = await localDb.getMemberById(params.id);
+    if (!member) {
+      return NextResponse.json(
+        { success: false, message: 'Anggota tidak ditemukan di database lokal.' },
+        { status: 404 }
+      );
     }
-  }
-
-  const member = serverStore.getById(id);
-  if (!member) {
+    return NextResponse.json({ success: true, source: 'sqlite_local', data: member });
+  } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: 'Anggota tidak ditemukan.' },
-      { status: 404 }
+      { success: false, message: 'Gagal mengambil data dari database lokal.' },
+      { status: 500 }
     );
   }
-
-  return NextResponse.json({ success: true, data: member });
 }
 
-// PUT /api/members/[id] - Memperbarui profil anggota (Admin)
+// PUT /api/members/[id] - Perbarui profil anggota di SQLite Lokal (Admin)
 export async function PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -59,31 +46,7 @@ export async function PUT(
     const { id } = params;
     const body = await req.json();
 
-    if (isSupabaseConfigured()) {
-      const supabase = createServerAdminClient();
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('family_members')
-          .update({
-            ...body,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', id)
-          .select()
-          .single();
-
-        if (error) {
-          return NextResponse.json(
-            { success: false, message: `Gagal memperbarui di Supabase: ${error.message}` },
-            { status: 500 }
-          );
-        }
-
-        return NextResponse.json({ success: true, data });
-      }
-    }
-
-    const updated = serverStore.update(id, body);
+    const updated = await localDb.updateMember(id, body);
     if (!updated) {
       return NextResponse.json(
         { success: false, message: 'Anggota keluarga tidak ditemukan.' },
@@ -91,16 +54,16 @@ export async function PUT(
       );
     }
 
-    return NextResponse.json({ success: true, data: updated });
-  } catch (error) {
+    return NextResponse.json({ success: true, source: 'sqlite_local', data: updated });
+  } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: 'Terjadi kesalahan saat memperbarui data.' },
+      { success: false, message: 'Gagal memperbarui di database lokal.' },
       { status: 500 }
     );
   }
 }
 
-// DELETE /api/members/[id] - Menghapus anggota (Admin)
+// DELETE /api/members/[id] - Hapus anggota dari SQLite Lokal (Admin)
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -114,30 +77,8 @@ export async function DELETE(
     }
 
     const { id } = params;
+    const deleted = await localDb.deleteMember(id);
 
-    if (isSupabaseConfigured()) {
-      const supabase = createServerAdminClient();
-      if (supabase) {
-        const { error } = await supabase
-          .from('family_members')
-          .delete()
-          .eq('id', id);
-
-        if (error) {
-          return NextResponse.json(
-            { success: false, message: `Gagal menghapus di Supabase: ${error.message}` },
-            { status: 500 }
-          );
-        }
-
-        return NextResponse.json({
-          success: true,
-          message: 'Anggota berhasil dihapus dari database.',
-        });
-      }
-    }
-
-    const deleted = serverStore.delete(id);
     if (!deleted) {
       return NextResponse.json(
         { success: false, message: 'Anggota keluarga tidak ditemukan.' },
@@ -147,11 +88,12 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Anggota berhasil dihapus.',
+      source: 'sqlite_local',
+      message: 'Anggota berhasil dihapus dari database lokal.',
     });
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: 'Terjadi kesalahan saat menghapus data.' },
+      { success: false, message: 'Gagal menghapus anggota dari database lokal.' },
       { status: 500 }
     );
   }

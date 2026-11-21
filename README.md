@@ -1,6 +1,19 @@
-# Aplikasi Silsilah Pohon Keluarga Interaktif (Frontend)
+# Aplikasi Silsilah Pohon Keluarga Interaktif
 
-Aplikasi web interaktif untuk memvisualisasikan silsilah garis keturunan keluarga besar lintas generasi dengan kalkulasi hubungan kekerabatan otomatis, berlandaskan spesifikasi dokumen [prd.md](file:///d:/project/antigravity/family/prd.md).
+Aplikasi web interaktif untuk memvisualisasikan silsilah garis keturunan keluarga besar lintas generasi dengan kalkulasi hubungan kekerabatan otomatis dan **database lokal SQLite bawaan**, berlandaskan spesifikasi dokumen [prd.md](file:///d:/project/antigravity/family/prd.md).
+
+---
+
+## 🗄️ Database Lokal (SQLite)
+Aplikasi ini menggunakan **SQLite lokal** (`data/family.db`) sehingga berjalan 100% mandiri (*self-contained*):
+- **Zero Configuration:** Tidak memerlukan instalasi software server database terpisah (bebas instalasi PostgreSQL/MySQL/Docker).
+- **File Database Lokal:** Berkas database disimpan langsung di `data/family.db`.
+- **Relasi & Indeks SQL:** Mendukung query SQL relasional berkinerja tinggi, indeks traversal silsilah keluarga, dan proteksi integritas data.
+- **Penyimpanan Foto Lokal:** Unggahan foto profil langsung disimpan di direktori lokal `public/uploads/`.
+- **Script Inisialisasi & Reset Data:**
+  ```bash
+  node scripts/init-db.mjs
+  ```
 
 ---
 
@@ -9,7 +22,7 @@ Aplikasi web interaktif untuk memvisualisasikan silsilah garis keturunan keluarg
 - **Hitam Pekat (Charcoal / Black `#09090b` & `#18181b`):** Header atas, kartu statistik, bingkai avatar, dan tombol aksi tegas.
 - **Putih Bersih (`#ffffff`):** Latar belakang kartu profil anggota, drawer detail, dan kanvas utama.
 - **Orange Gelap (`#c2410c` & `#ea580c`):** Aksen penanda aktif, jalur hubungan silsilah yang disorot, ikon interaktif, dan tombol utama.
-- **Tipografi Terpadu:** Menggunakan font modern **Plus Jakarta Sans** di seluruh halaman tanpa perpaduan font acak agar tampilan natural, bersih, dan profesional.
+- **Tipografi Terpadu:** Menggunakan font modern **Plus Jakarta Sans** di seluruh halaman.
 
 ---
 
@@ -18,14 +31,14 @@ Aplikasi web interaktif untuk memvisualisasikan silsilah garis keturunan keluarg
 ### 1. Kanvas Pohon Silsilah Interaktif (PRD Bagian 3.A)
 - **Node Profil Sirkuler:** Bingkai foto sirkuler dengan indikator gender, status kehidupan (Masih Hidup / Wafat), nama lengkap, nama panggilan, rentang tahun, dan domisili.
 - **Garis Konektor Ortogonal:**
-  - **Pernikahan:** Garis horizontal putus-putus berlabel `⚭`.
+  - **Pernikahan:** Garis horizontal berlabel `⚭`.
   - **Garis Keturunan:** Garis ortogonal vertikal halus yang mengalir ke anak-anak berpanah `↓`.
 - **Kontrol Navigasi:** Geser bebas (*pan*), perbesar/perkecil (*zoom*), peta mini (*minimap*), dan tombol **"Pusatkan Tampilan"**.
 - **Filter Generasi:** Tab tombol untuk menampilkan atau memfilter tampilan berdasarkan Generasi (Semua, Gen 1, Gen 2, Gen 3, Gen 4).
 
 ### 2. Panel Rincian Profil Anggota (Drawer) (PRD Bagian 3.B)
 - Klik anggota keluarga mana saja untuk membuka drawer rincian:
-  - Foto resolusi tinggi dan status.
+  - Foto resolusi tinggi dan status kehidupan.
   - Nama lengkap, nama panggilan, tempat & tanggal lahir, tanggal wafat.
   - Kota asal & domisili saat ini.
   - Posisi keluarga (misal: *"Anak ke-1 dari Soedirdjo & Siti Rahayu"*).
@@ -47,8 +60,8 @@ Aplikasi web interaktif untuk memvisualisasikan silsilah garis keturunan keluarg
 
 ### 5. Pengelolaan Data Silsilah (Mode Admin) (PRD Bagian 3.E)
 - **Keamanan:** Klik ikon gembok dan masukkan sandi demo `admin123`.
-- **CRUD & Relasi:** Tambah anggota baru, ubah rincian profil, pilih foto atau preset avatar, dan hapus data.
-- **Penyimpanan:** Tersimpan di `localStorage` peramban, serta dilengkapi tombol **"Pulihkan Data Asli"** untuk mereset ke data awal kapan saja.
+- **CRUD & Relasi:** Tambah anggota baru, ubah rincian profil, unggah foto dari komputer, dan hapus data langsung tersimpan ke SQLite lokal `data/family.db`.
+- Dilengkapi tombol **"Pulihkan Data Asli"** untuk mereset ke data awal kapan saja.
 
 ---
 

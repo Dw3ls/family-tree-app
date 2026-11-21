@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerAdminClient } from '@/lib/supabase/server';
-import { isSupabaseConfigured } from '@/lib/supabase/client';
+import fs from 'fs';
+import path from 'path';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
 
 function checkAdminAuth(req: NextRequest): boolean {
@@ -9,7 +9,7 @@ function checkAdminAuth(req: NextRequest): boolean {
   return verifyAdminToken(cookieToken || headerToken);
 }
 
-// POST /api/upload - Mengunggah foto profil (Supabase Storage / Data URL)
+// POST /api/upload - Menyimpan berkas foto profil secara lokal di public/uploads/
 export async function POST(req: NextRequest) {
   try {
     if (!checkAdminAuth(req)) {
@@ -29,7 +29,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Periksa ukuran berkas (maksimal 5MB)
     if (file.size > 5 * 1024 * 1024) {
       return NextResponse.json(
         { success: false, message: 'Ukuran foto maksimal adalah 5MB.' },
@@ -37,49 +36,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const fileExt = file.name.split('.').pop() || 'jpg';
-    const fileName = `avatar-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-
-    // Jika Supabase Storage aktif
-    if (isSupabaseConfigured()) {
-      const supabase = createServerAdminClient();
-      if (supabase) {
-        const buffer = Buffer.from(await file.arrayBuffer());
-
-        const { error: uploadError } = await supabase.storage
-          .from('family-avatars')
-          .upload(fileName, buffer, {
-            contentType: file.type || 'image/jpeg',
-            upsert: false,
-          });
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from('family-avatars')
-            .getPublicUrl(fileName);
-
-          return NextResponse.json({
-            success: true,
-            photoUrl: urlData.publicUrl,
-            source: 'supabase_storage',
-          });
-        }
-        console.warn('Gagal unggah ke Supabase Storage, menggunakan fallback data URL:', uploadError);
-      }
+    // Buat direktori penyimpanan lokal public/uploads/ jika belum ada
+    const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
     }
 
-    // Fallback lokal: Konversi ke Base64 Data URL
+    const fileExt = file.name.split('.').pop() || 'jpg';
+    const fileName = `avatar-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+    const filePath = path.resolve(uploadsDir, fileName);
+
     const buffer = Buffer.from(await file.arrayBuffer());
-    const base64Data = `data:${file.type || 'image/jpeg'};base64,${buffer.toString('base64')}`;
+    fs.writeFileSync(filePath, buffer);
+
+    const publicUrl = `/uploads/${fileName}`;
 
     return NextResponse.json({
       success: true,
-      photoUrl: base64Data,
-      source: 'local_base64',
+      photoUrl: publicUrl,
+      source: 'local_disk',
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Error saat upload foto:', error);
     return NextResponse.json(
-      { success: false, message: 'Gagal memproses unggahan foto.' },
+      { success: false, message: 'Gagal menyimpan berkas foto ke disk lokal.' },
       { status: 500 }
     );
   }

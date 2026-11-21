@@ -1,56 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerAdminClient } from '@/lib/supabase/server';
-import { isSupabaseConfigured } from '@/lib/supabase/client';
-import { serverStore } from '@/lib/serverStore';
+import { localDb } from '@/lib/db';
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/auth';
 import { FamilyMember } from '@/types/family';
 
-// Helper verifikasi admin dari request
 function checkAdminAuth(req: NextRequest): boolean {
   const cookieToken = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
   const headerToken = req.headers.get('Authorization')?.replace('Bearer ', '');
   return verifyAdminToken(cookieToken || headerToken);
 }
 
-// GET /api/members - Membaca seluruh anggota keluarga (Publik / Read-Only)
+// GET /api/members - Membaca seluruh silsilah keluarga dari SQLite Lokal
 export async function GET() {
   try {
-    if (isSupabaseConfigured()) {
-      const supabase = createServerAdminClient();
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('family_members')
-          .select('*')
-          .order('generation', { ascending: true })
-          .order('birth_date', { ascending: true });
-
-        if (!error && data) {
-          return NextResponse.json({
-            success: true,
-            source: 'supabase',
-            data: data as FamilyMember[],
-          });
-        }
-        console.warn('Gagal membaca data dari Supabase, beralih ke penyimpanan lokal:', error);
-      }
-    }
-
-    // Fallback: Penyimpanan lokal server
-    const members = serverStore.getAll();
+    const members = await localDb.getAllMembers();
     return NextResponse.json({
       success: true,
-      source: 'local_store',
+      source: 'sqlite_local',
+      database: 'data/family.db',
       data: members,
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Error saat membaca SQLite lokal:', error);
     return NextResponse.json(
-      { success: false, message: 'Gagal mengambil data anggota keluarga.' },
+      { success: false, message: 'Gagal membaca data dari database lokal.', error: error.message },
       { status: 500 }
     );
   }
 }
 
-// POST /api/members - Menambah anggota keluarga baru (Hanya Admin)
+// POST /api/members - Menambah anggota keluarga baru ke SQLite Lokal (Hanya Admin)
 export async function POST(req: NextRequest) {
   try {
     if (!checkAdminAuth(req)) {
@@ -72,59 +50,33 @@ export async function POST(req: NextRequest) {
     const newMember: FamilyMember = {
       id: payload.id || `member-${Date.now()}`,
       full_name: payload.full_name,
-      nickname: payload.nickname || null,
+      nickname: payload.nickname || undefined,
       gender: payload.gender,
-      birth_place: payload.birth_place || null,
-      birth_date: payload.birth_date || null,
-      death_date: payload.death_date || null,
-      origin_city: payload.origin_city || null,
-      current_city: payload.current_city || null,
-      bio: payload.bio || null,
-      photo_url: payload.photo_url || null,
+      birth_place: payload.birth_place || undefined,
+      birth_date: payload.birth_date || undefined,
+      death_date: payload.death_date || undefined,
+      origin_city: payload.origin_city || undefined,
+      current_city: payload.current_city || undefined,
+      bio: payload.bio || undefined,
+      photo_url: payload.photo_url || undefined,
       father_id: payload.father_id || null,
       mother_id: payload.mother_id || null,
       spouse_id: payload.spouse_id || null,
       generation: Number(payload.generation) || 1,
-      family_position: payload.family_position || null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      family_position: payload.family_position || undefined,
     };
 
-    if (isSupabaseConfigured()) {
-      const supabase = createServerAdminClient();
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('family_members')
-          .insert([newMember])
-          .select()
-          .single();
+    const saved = await localDb.createMember(newMember);
 
-        if (error) {
-          console.error('Error saat insert ke Supabase:', error);
-          return NextResponse.json(
-            { success: false, message: `Gagal menyimpan ke database Supabase: ${error.message}` },
-            { status: 500 }
-          );
-        }
-
-        return NextResponse.json({
-          success: true,
-          source: 'supabase',
-          data,
-        });
-      }
-    }
-
-    // Fallback: Penyimpanan lokal server
-    const saved = serverStore.insert(newMember);
     return NextResponse.json({
       success: true,
-      source: 'local_store',
+      source: 'sqlite_local',
       data: saved,
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('Error saat menambah anggota ke SQLite:', error);
     return NextResponse.json(
-      { success: false, message: 'Gagal memproses penambahan anggota keluarga.' },
+      { success: false, message: 'Gagal menyimpan ke database lokal.', error: error.message },
       { status: 500 }
     );
   }
