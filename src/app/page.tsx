@@ -14,13 +14,14 @@ import { ProfileDrawer } from '../components/ProfileDrawer';
 import { RelationshipFinderBar } from '../components/RelationshipFinderBar';
 import { EditMemberModal } from '../components/EditMemberModal';
 import { AdminLoginModal } from '../components/AdminLoginModal';
+import { ToastContainer, ToastMessage } from '../components/Toast';
 
 function FamilyTreeMain() {
   const { setCenter, fitView } = useReactFlow();
 
   // State data silsilah keluarga
   const [members, setMembers] = useState<FamilyMember[]>(INITIAL_FAMILY_MEMBERS);
-  const [dataSource, setDataSource] = useState<string>('loading');
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
   // State antarmuka (UI)
   const [selectedDrawerMember, setSelectedDrawerMember] = useState<FamilyMember | null>(null);
@@ -35,20 +36,50 @@ function FamilyTreeMain() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<FamilyMember | null>(null);
 
+  // Toast notification state
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Keyboard shortcut: Escape to close modals or drawers
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isEditModalOpen) setIsEditModalOpen(false);
+        else if (isAdminLoginOpen) setIsAdminLoginOpen(false);
+        else if (selectedDrawerMember) setSelectedDrawerMember(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isEditModalOpen, isAdminLoginOpen, selectedDrawerMember]);
+
   // Muat data dari Backend API saat awal membuka aplikasi
   useEffect(() => {
     async function loadData() {
+      setIsLoadingData(true);
       try {
-        const { members: remoteMembers, source } = await familyService.getMembers();
+        const { members: remoteMembers } = await familyService.getMembers();
         if (remoteMembers && remoteMembers.length > 0) {
           setMembers(remoteMembers);
-          setDataSource(source);
         }
       } catch (err) {
         console.warn('Gagal memuat dari backend:', err);
+      } finally {
+        setIsLoadingData(false);
       }
 
-      // Periksa juga apakah sesi admin masih aktif
+      // Periksa apakah sesi admin masih aktif
       const isAdmin = await familyService.checkAdminStatus();
       if (isAdmin) {
         setIsAdminMode(true);
@@ -56,6 +87,22 @@ function FamilyTreeMain() {
     }
     loadData();
   }, []);
+
+  // Ekspor cadangan data JSON
+  const handleExportData = useCallback(() => {
+    try {
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(members, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', dataStr);
+      downloadAnchor.setAttribute('download', `silsilah-keluarga-${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast('Cadangan berkas data silsilah berhasil diunduh.', 'success');
+    } catch (e) {
+      showToast('Gagal mengekspor data silsilah.', 'error');
+    }
+  }, [members, showToast]);
 
   // Kembalikan ke data demo awal via backend API
   const handleResetDemoData = useCallback(async () => {
@@ -65,10 +112,11 @@ function FamilyTreeMain() {
       setSelectedDrawerMember(null);
       setSelectedAId(null);
       setSelectedBId(null);
+      showToast('Data pohon silsilah berhasil dipulihkan ke 4 generasi default.', 'info');
     } catch (err) {
-      console.warn('Gagal reset demo:', err);
+      showToast('Gagal mereset data silsilah.', 'error');
     }
-  }, []);
+  }, [showToast]);
 
   // Arahkan kamera kanvas ke posisi anggota tertentu
   const handleFocusMember = useCallback(
@@ -155,27 +203,39 @@ function FamilyTreeMain() {
     const exists = members.some((m) => m.id === savedMember.id);
     let updatedMember = savedMember;
 
-    if (exists) {
-      updatedMember = await familyService.updateMember(savedMember.id, savedMember);
-      setMembers((prev) => prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
-    } else {
-      updatedMember = await familyService.createMember(savedMember);
-      setMembers((prev) => [...prev, updatedMember]);
-    }
+    try {
+      if (exists) {
+        updatedMember = await familyService.updateMember(savedMember.id, savedMember);
+        setMembers((prev) => prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
+        showToast(`Profil ${updatedMember.full_name} berhasil diperbarui.`, 'success');
+      } else {
+        updatedMember = await familyService.createMember(savedMember);
+        setMembers((prev) => [...prev, updatedMember]);
+        showToast(`Anggota baru ${updatedMember.full_name} berhasil ditambahkan.`, 'success');
+      }
 
-    if (selectedDrawerMember?.id === updatedMember.id) {
-      setSelectedDrawerMember(updatedMember);
+      if (selectedDrawerMember?.id === updatedMember.id) {
+        setSelectedDrawerMember(updatedMember);
+      }
+    } catch (e) {
+      showToast('Gagal menyimpan data ke database lokal.', 'error');
     }
   };
 
   const handleDeleteMember = async (memberId: string) => {
-    await familyService.deleteMember(memberId);
-    setMembers((prev) => prev.filter((m) => m.id !== memberId));
-    if (selectedDrawerMember?.id === memberId) {
-      setSelectedDrawerMember(null);
+    const target = members.find((m) => m.id === memberId);
+    try {
+      await familyService.deleteMember(memberId);
+      setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      if (selectedDrawerMember?.id === memberId) {
+        setSelectedDrawerMember(null);
+      }
+      if (selectedAId === memberId) setSelectedAId(null);
+      if (selectedBId === memberId) setSelectedBId(null);
+      showToast(`${target?.full_name || 'Anggota'} berhasil dihapus dari silsilah.`, 'info');
+    } catch (e) {
+      showToast('Gagal menghapus anggota.', 'error');
     }
-    if (selectedAId === memberId) setSelectedAId(null);
-    if (selectedBId === memberId) setSelectedBId(null);
   };
 
   // Buat node dan edges sesuai algoritma layout
@@ -234,6 +294,9 @@ function FamilyTreeMain() {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-zinc-50 text-zinc-900 font-sans">
+      {/* Toast Notification Container */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
       {/* Navigasi Atas */}
       <Navbar
         members={members}
@@ -249,12 +312,14 @@ function FamilyTreeMain() {
           if (isAdminMode) {
             await familyService.logoutAdmin();
             setIsAdminMode(false);
+            showToast('Anda telah keluar dari Mode Admin.', 'info');
           } else {
             setIsAdminLoginOpen(true);
           }
         }}
         onAddNewMember={handleOpenAddMember}
         onResetDemoData={handleResetDemoData}
+        onExportData={handleExportData}
       />
 
       {/* Banner Silsilah Keluarga */}
@@ -271,17 +336,24 @@ function FamilyTreeMain() {
 
       {/* Area Kanvas Silsilah Interaktif */}
       <main className="flex-1 relative w-full h-full overflow-hidden">
-        <FamilyTreeCanvasInner
-          nodes={nodes}
-          edges={edges}
-          onSelectMember={handleSelectMember}
-          isRelationshipMode={isRelationshipMode}
-          selectedA={selectedA}
-          selectedB={selectedB}
-          onResetView={handleResetView}
-          activeGenFilter={activeGenFilter}
-          setActiveGenFilter={setActiveGenFilter}
-        />
+        {isLoadingData ? (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-100/60 gap-3">
+            <div className="w-8 h-8 rounded-full border-2 border-zinc-900 border-t-darkorange-700 animate-spin" />
+            <span className="text-xs font-semibold text-zinc-600">Memuat Silsilah Keluarga...</span>
+          </div>
+        ) : (
+          <FamilyTreeCanvasInner
+            nodes={nodes}
+            edges={edges}
+            onSelectMember={handleSelectMember}
+            isRelationshipMode={isRelationshipMode}
+            selectedA={selectedA}
+            selectedB={selectedB}
+            onResetView={handleResetView}
+            activeGenFilter={activeGenFilter}
+            setActiveGenFilter={setActiveGenFilter}
+          />
+        )}
 
         {/* Panel Samping (Drawer Profil Anggota) */}
         <ProfileDrawer
@@ -336,6 +408,7 @@ function FamilyTreeMain() {
         onClose={() => setIsAdminLoginOpen(false)}
         onSuccess={() => {
           setIsAdminMode(true);
+          showToast('Mode Admin aktif! Anda dapat menambah, mengubah, dan menghapus silsilah.', 'success');
         }}
       />
     </div>

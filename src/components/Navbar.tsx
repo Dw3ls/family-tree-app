@@ -11,6 +11,7 @@ import {
   TreeDeciduous,
   Plus,
   RefreshCw,
+  Download,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -24,6 +25,7 @@ interface NavbarProps {
   onToggleAdminMode: () => void;
   onAddNewMember: () => void;
   onResetDemoData: () => void;
+  onExportData: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -37,6 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleAdminMode,
   onAddNewMember,
   onResetDemoData,
+  onExportData,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-zinc-200 shadow-soft-sm">
@@ -74,6 +77,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span className="hidden lg:inline">Pusatkan Tampilan</span>
+          </button>
+
+          {/* Tombol Ekspor JSON */}
+          <button
+            onClick={onExportData}
+            className="p-2 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 transition flex items-center gap-1.5 text-xs font-semibold"
+            title="Unduh cadangan data silsilah (JSON)"
+          >
+            <Download className="w-3.5 h-3.5 text-darkorange-700" />
+            <span className="hidden xl:inline">Ekspor Data</span>
           </button>
 
           {/* Tombol Cek Kekerabatan */}
