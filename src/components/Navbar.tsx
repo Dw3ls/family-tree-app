@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { FamilyMember } from '../types/family';
 import { SearchAutocomplete } from './SearchAutocomplete';
 import {
@@ -10,8 +10,9 @@ import {
   Sparkles,
   TreeDeciduous,
   Plus,
-  RefreshCw,
+  Trash2,
   Download,
+  UploadCloud,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -24,8 +25,9 @@ interface NavbarProps {
   onOpenAdminLogin: () => void;
   onToggleAdminMode: () => void;
   onAddNewMember: () => void;
-  onResetDemoData: () => void;
+  onClearAllData: () => void;
   onExportData: () => void;
+  onImportData: (members: FamilyMember[]) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -38,9 +40,33 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAdminLogin,
   onToggleAdminMode,
   onAddNewMember,
-  onResetDemoData,
+  onClearAllData,
   onExportData,
+  onImportData,
 }) => {
+  const jsonFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (Array.isArray(json)) {
+          onImportData(json);
+        } else {
+          alert('Format berkas tidak valid. Harap unggah berkas JSON silsilah yang sah.');
+        }
+      } catch (err) {
+        alert('Gagal membaca berkas JSON.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-zinc-200 shadow-soft-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
@@ -59,7 +85,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Kolom Pencarian Cepat (PRD 3.D) */}
+        {/* Kolom Pencarian Cepat */}
         <div className="flex-1 max-w-sm mx-2">
           <SearchAutocomplete
             members={members}
@@ -69,41 +95,66 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Tombol Kontrol Utama */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Tombol Atur Ulang Tampilan */}
+          {/* Tombol Pusatkan Tampilan */}
           <button
             onClick={onResetView}
             className="p-2 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 transition flex items-center gap-1.5 text-xs font-semibold"
-            title="Pusatkan kamera ke leluhur utama"
+            title="Pusatkan kamera ke tampilan keseluruhan"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">Pusatkan Tampilan</span>
+            <span className="hidden lg:inline">Pusatkan</span>
           </button>
 
           {/* Tombol Ekspor JSON */}
-          <button
-            onClick={onExportData}
-            className="p-2 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 transition flex items-center gap-1.5 text-xs font-semibold"
-            title="Unduh cadangan data silsilah (JSON)"
-          >
-            <Download className="w-3.5 h-3.5 text-darkorange-700" />
-            <span className="hidden xl:inline">Ekspor Data</span>
-          </button>
+          {members.length > 0 && (
+            <button
+              onClick={onExportData}
+              className="p-2 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 transition flex items-center gap-1.5 text-xs font-semibold"
+              title="Unduh cadangan data silsilah (JSON)"
+            >
+              <Download className="w-3.5 h-3.5 text-darkorange-700" />
+              <span className="hidden xl:inline">Ekspor Data</span>
+            </button>
+          )}
+
+          {/* Tombol Impor JSON (Admin Only) */}
+          {isAdminMode && (
+            <>
+              <button
+                onClick={() => jsonFileInputRef.current?.click()}
+                className="p-2 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 transition flex items-center gap-1.5 text-xs font-semibold"
+                title="Pulihkan data silsilah dari berkas cadangan JSON"
+              >
+                <UploadCloud className="w-3.5 h-3.5 text-zinc-700" />
+                <span className="hidden xl:inline">Impor JSON</span>
+              </button>
+              <input
+                ref={jsonFileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleJsonUpload}
+                className="hidden"
+              />
+            </>
+          )}
 
           {/* Tombol Cek Kekerabatan */}
-          <button
-            onClick={onToggleRelationshipMode}
-            className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
-              isRelationshipMode
-                ? 'bg-darkorange-700 text-white shadow-soft-sm'
-                : 'text-zinc-700 hover:bg-zinc-100 border border-zinc-200'
-            }`}
-            title="Buka Alat Cek Hubungan Kekerabatan"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-darkorange-400" />
-            <span className="hidden md:inline">
-              {isRelationshipMode ? 'Mode Cek Aktif' : 'Cek Kekerabatan'}
-            </span>
-          </button>
+          {members.length >= 2 && (
+            <button
+              onClick={onToggleRelationshipMode}
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition ${
+                isRelationshipMode
+                  ? 'bg-darkorange-700 text-white shadow-soft-sm'
+                  : 'text-zinc-700 hover:bg-zinc-100 border border-zinc-200'
+              }`}
+              title="Buka Alat Cek Hubungan Kekerabatan"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-darkorange-400" />
+              <span className="hidden md:inline">
+                {isRelationshipMode ? 'Mode Cek Aktif' : 'Cek Kekerabatan'}
+              </span>
+            </button>
+          )}
 
           {/* Tambah Anggota (Admin) */}
           {isAdminMode && (
@@ -128,17 +179,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Unlock className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Admin Aktif</span>
               </button>
-              <button
-                onClick={() => {
-                  if (confirm('Kembalikan data keluarga ke data demo semula?')) {
-                    onResetDemoData();
-                  }
-                }}
-                className="p-2 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition border border-zinc-200"
-                title="Pulihkan Data Asli"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-              </button>
+              {members.length > 0 && (
+                <button
+                  onClick={onClearAllData}
+                  className="p-2 rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 transition border border-zinc-200"
+                  title="Kosongkan Semua Data Silsilah"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           ) : (
             <button

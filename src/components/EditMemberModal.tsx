@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { FamilyMember, Gender } from '../types/family';
 import { familyService } from '../services/familyService';
-import { X, Save, Trash2, Link as LinkIcon, UserPlus, Upload, Loader2 } from 'lucide-react';
+import { X, Save, Trash2, Link as LinkIcon, UserPlus, Upload, Loader2, ImagePlus } from 'lucide-react';
 
 interface EditMemberModalProps {
   isOpen: boolean;
@@ -12,19 +12,8 @@ interface EditMemberModalProps {
   allMembers: FamilyMember[];
   onSave: (savedMember: FamilyMember) => void;
   onDelete?: (memberId: string) => void;
+  defaultGeneration?: number;
 }
-
-const AVATAR_PRESETS = [
-  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1581579438747-1dc8d17bbce4?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1548142813-c348350df52b?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80',
-  'https://images.unsplash.com/photo-1519689680058-324335c77eba?auto=format&fit=crop&w=400&q=80',
-];
 
 export const EditMemberModal: React.FC<EditMemberModalProps> = ({
   isOpen,
@@ -33,6 +22,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
   allMembers,
   onSave,
   onDelete,
+  defaultGeneration = 1,
 }) => {
   const isEditing = Boolean(member && member.id);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -46,13 +36,14 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
   const [originCity, setOriginCity] = useState(member?.origin_city || '');
   const [currentCity, setCurrentCity] = useState(member?.current_city || '');
   const [bio, setBio] = useState(member?.bio || '');
-  const [photoUrl, setPhotoUrl] = useState(member?.photo_url || AVATAR_PRESETS[0]);
+  const [photoUrl, setPhotoUrl] = useState(member?.photo_url || '');
   const [fatherId, setFatherId] = useState<string | null>(member?.father_id || null);
   const [motherId, setMotherId] = useState<string | null>(member?.mother_id || null);
   const [spouseId, setSpouseId] = useState<string | null>(member?.spouse_id || null);
-  const [generation, setGeneration] = useState<number>(member?.generation || 2);
+  const [generation, setGeneration] = useState<number>(member?.generation || defaultGeneration);
   const [familyPosition, setFamilyPosition] = useState(member?.family_position || '');
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   React.useEffect(() => {
     if (member) {
@@ -65,12 +56,13 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
       setOriginCity(member.origin_city || '');
       setCurrentCity(member.current_city || '');
       setBio(member.bio || '');
-      setPhotoUrl(member.photo_url || AVATAR_PRESETS[0]);
+      setPhotoUrl(member.photo_url || '');
       setFatherId(member.father_id || null);
       setMotherId(member.mother_id || null);
       setSpouseId(member.spouse_id || null);
-      setGeneration(member.generation || 2);
+      setGeneration(member.generation || defaultGeneration);
       setFamilyPosition(member.family_position || '');
+      setUploadError(null);
     } else {
       setFullName('');
       setNickname('');
@@ -81,14 +73,15 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
       setOriginCity('');
       setCurrentCity('');
       setBio('');
-      setPhotoUrl(AVATAR_PRESETS[0]);
+      setPhotoUrl('');
       setFatherId(null);
       setMotherId(null);
       setSpouseId(null);
-      setGeneration(2);
+      setGeneration(defaultGeneration);
       setFamilyPosition('');
+      setUploadError(null);
     }
-  }, [member, isOpen]);
+  }, [member, isOpen, defaultGeneration]);
 
   if (!isOpen) return null;
 
@@ -104,16 +97,17 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setUploadError(null);
     setIsUploading(true);
     try {
       const uploadedUrl = await familyService.uploadAvatar(file);
       if (uploadedUrl) {
         setPhotoUrl(uploadedUrl);
       } else {
-        alert('Gagal mengunggah foto. Pastikan format berupa gambar (JPG/PNG).');
+        setUploadError('Gagal mengunggah foto. Pastikan format berupa gambar (JPG, PNG, atau WEBP) max 5MB.');
       }
     } catch (err) {
-      alert('Terjadi kesalahan saat mengunggah foto.');
+      setUploadError('Terjadi kesalahan saat memproses unggahan foto.');
     } finally {
       setIsUploading(false);
     }
@@ -175,72 +169,74 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
 
         {/* Form Modal */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-          {/* Pratinjau Foto Profil & Unggah */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-2xl bg-zinc-50 border border-zinc-200">
-            <div className="relative w-20 h-20 rounded-full overflow-hidden border-2 border-darkorange-700 shadow-soft-sm shrink-0 bg-zinc-100">
-              {photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photoUrl}
-                  alt="Pratinjau foto"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center font-bold text-zinc-400 text-xs">
-                  Foto
-                </div>
-              )}
-              {isUploading && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                </div>
-              )}
-            </div>
+          {/* Bagian Unggah Foto Profil (Langsung Tersimpan di SQLite / Disk Lokal) */}
+          <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-200">
+            <label className="text-xs font-bold text-zinc-900 block mb-2">
+              Foto Profil Anggota
+            </label>
 
-            <div className="w-full">
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-zinc-700">
-                  Foto Profil (Unggah dari Komputer atau Pilih Contoh):
-                </label>
-                <button
-                  type="button"
-                  disabled={isUploading}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white text-[11px] font-semibold flex items-center gap-1 transition"
-                >
-                  <Upload className="w-3 h-3 text-darkorange-400" />
-                  Unggah Berkas
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-darkorange-700 shadow-soft-sm shrink-0 bg-zinc-200">
+                {photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photoUrl}
+                    alt="Pratinjau foto profil"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-zinc-400 text-[11px] font-semibold gap-1">
+                    <ImagePlus className="w-6 h-6 text-zinc-400" />
+                    <span>Tanpa Foto</span>
+                  </div>
+                )}
+                {isUploading && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white">
+                    <Loader2 className="w-6 h-6 animate-spin text-darkorange-400" />
+                  </div>
+                )}
               </div>
 
-              <input
-                type="text"
-                value={photoUrl}
-                onChange={(e) => setPhotoUrl(e.target.value)}
-                placeholder="https://... atau data gambar"
-                className="w-full text-xs px-3 py-1.5 border border-zinc-300 rounded-lg focus:ring-1 focus:ring-zinc-900 outline-none mb-2"
-              />
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                {AVATAR_PRESETS.map((preset, idx) => (
+              <div className="flex-1 w-full space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
-                    key={idx}
                     type="button"
-                    onClick={() => setPhotoUrl(preset)}
-                    className={`w-7 h-7 rounded-full overflow-hidden border-2 shrink-0 transition ${
-                      photoUrl === preset ? 'border-darkorange-700 scale-105' : 'border-transparent opacity-60 hover:opacity-100'
-                    }`}
+                    disabled={isUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-soft-sm border border-zinc-800"
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={preset} alt="preset" className="w-full h-full object-cover" />
+                    <Upload className="w-3.5 h-3.5 text-darkorange-400" />
+                    <span>{photoUrl ? 'Ganti Foto dari Komputer' : 'Pilih Foto dari Komputer'}</span>
                   </button>
-                ))}
+
+                  {photoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoUrl('')}
+                      className="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold transition border border-zinc-200"
+                    >
+                      Hapus Foto
+                    </button>
+                  )}
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </div>
+
+                <p className="text-[11px] text-zinc-500 leading-relaxed">
+                  Berkas foto akan otomatis disimpan ke direktori lokal <code className="bg-zinc-200 px-1 py-0.5 rounded font-mono text-zinc-800">public/uploads/</code> dan tautannya tersimpan di database SQLite lokal.
+                </p>
+
+                {uploadError && (
+                  <p className="text-[11px] font-semibold text-red-600">
+                    {uploadError}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -306,12 +302,12 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
 
             <div>
               <label className="text-xs font-bold text-zinc-700 block mb-1">
-                Tingkat Generasi (1, 2, 3, 4)
+                Tingkat Generasi (1 = Leluhur, 2, 3...)
               </label>
               <input
                 type="number"
                 min="1"
-                max="6"
+                max="8"
                 value={generation}
                 onChange={(e) => setGeneration(Number(e.target.value))}
                 className="w-full text-xs px-3 py-2 border border-zinc-300 rounded-xl focus:ring-1 focus:ring-zinc-900 outline-none"

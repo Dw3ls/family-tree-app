@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import { createClient, Client } from '@libsql/client';
 import { FamilyMember } from '../types/family';
-import { INITIAL_FAMILY_MEMBERS } from '../data/initialFamilyData';
 
 let clientInstance: Client | null = null;
 
@@ -29,7 +28,7 @@ export async function initDb() {
 
   const client = getDbClient();
 
-  // 1. Buat Tabel Silsilah Keluarga Lokal
+  // 1. Buat Tabel Silsilah Keluarga Lokal Tanpa Data Dummy Bawaan
   await client.execute(`
     CREATE TABLE IF NOT EXISTS family_members (
       id TEXT PRIMARY KEY,
@@ -53,50 +52,12 @@ export async function initDb() {
     );
   `);
 
-  // 2. Buat Indeks Pencarian & Traversal
+  // 2. Buat Indeks Pencarian & Traversal Silsilah
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_members_father ON family_members(father_id);`);
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_members_mother ON family_members(mother_id);`);
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_members_spouse ON family_members(spouse_id);`);
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_members_generation ON family_members(generation);`);
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_members_name ON family_members(full_name);`);
-
-  // 3. Periksa apakah tabel masih kosong, jika ya, isi otomatis dengan data awal (seed)
-  const countRs = await client.execute(`SELECT COUNT(*) as count FROM family_members;`);
-  const count = Number(countRs.rows[0]?.count || 0);
-
-  if (count === 0) {
-    for (const m of INITIAL_FAMILY_MEMBERS) {
-      await client.execute({
-        sql: `
-          INSERT OR REPLACE INTO family_members (
-            id, full_name, nickname, gender, birth_place, birth_date, death_date,
-            origin_city, current_city, bio, photo_url, father_id, mother_id, spouse_id,
-            generation, family_position, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-        `,
-        args: [
-          m.id,
-          m.full_name,
-          m.nickname || null,
-          m.gender,
-          m.birth_place || null,
-          m.birth_date || null,
-          m.death_date || null,
-          m.origin_city || null,
-          m.current_city || null,
-          m.bio || null,
-          m.photo_url || null,
-          m.father_id || null,
-          m.mother_id || null,
-          m.spouse_id || null,
-          m.generation || 1,
-          m.family_position || null,
-          new Date().toISOString(),
-          new Date().toISOString(),
-        ],
-      });
-    }
-  }
 
   isInitialized = true;
 }
@@ -125,7 +86,7 @@ function mapRowToMember(row: any): FamilyMember {
 }
 
 export const localDb = {
-  // Ambil semua anggota keluarga
+  // Ambil semua anggota keluarga dari SQLite lokal
   getAllMembers: async (): Promise<FamilyMember[]> => {
     await initDb();
     const client = getDbClient();
@@ -148,7 +109,7 @@ export const localDb = {
     return mapRowToMember(rs.rows[0]);
   },
 
-  // Tambah anggota baru
+  // Tambah anggota baru ke SQLite lokal
   createMember: async (member: FamilyMember): Promise<FamilyMember> => {
     await initDb();
     const client = getDbClient();
@@ -187,7 +148,7 @@ export const localDb = {
     return { ...member, created_at: now, updated_at: now };
   },
 
-  // Ubah profil anggota
+  // Ubah profil anggota di SQLite lokal
   updateMember: async (id: string, updates: Partial<FamilyMember>): Promise<FamilyMember | null> => {
     await initDb();
     const client = getDbClient();
@@ -246,7 +207,7 @@ export const localDb = {
     await initDb();
     const client = getDbClient();
 
-    // Bersihkan referensi relasi
+    // Bersihkan referensi foreign key
     await client.execute({
       sql: `UPDATE family_members SET father_id = NULL WHERE father_id = ?;`,
       args: [id],
@@ -268,24 +229,34 @@ export const localDb = {
     return rs.rowsAffected > 0;
   },
 
-  // Reset ke data demo 4 generasi
-  resetDemoData: async (): Promise<FamilyMember[]> => {
+  // Kosongkan seluruh data silsilah
+  clearAllMembers: async (): Promise<boolean> => {
+    await initDb();
+    const client = getDbClient();
+    await client.execute(`DELETE FROM family_members;`);
+    return true;
+  },
+
+  // Impor sekumpulan data silsilah keluarga (misal dari backup JSON)
+  importMembers: async (members: FamilyMember[]): Promise<FamilyMember[]> => {
     await initDb();
     const client = getDbClient();
 
+    // Kosongkan dahulu
     await client.execute(`DELETE FROM family_members;`);
 
-    for (const m of INITIAL_FAMILY_MEMBERS) {
+    const now = new Date().toISOString();
+    for (const m of members) {
       await client.execute({
         sql: `
-          INSERT INTO family_members (
+          INSERT OR REPLACE INTO family_members (
             id, full_name, nickname, gender, birth_place, birth_date, death_date,
             origin_city, current_city, bio, photo_url, father_id, mother_id, spouse_id,
             generation, family_position, created_at, updated_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         `,
         args: [
-          m.id,
+          m.id || `member-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           m.full_name,
           m.nickname || null,
           m.gender,
@@ -301,8 +272,8 @@ export const localDb = {
           m.spouse_id || null,
           m.generation || 1,
           m.family_position || null,
-          new Date().toISOString(),
-          new Date().toISOString(),
+          now,
+          now,
         ],
       });
     }

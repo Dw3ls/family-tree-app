@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
-import { INITIAL_FAMILY_MEMBERS } from '../data/initialFamilyData';
 import { FamilyMember, RelationshipResult } from '../types/family';
 import { calculateRelationship } from '../utils/relationshipEngine';
 import { generateTreeLayout } from '../utils/layoutEngine';
@@ -15,12 +14,13 @@ import { RelationshipFinderBar } from '../components/RelationshipFinderBar';
 import { EditMemberModal } from '../components/EditMemberModal';
 import { AdminLoginModal } from '../components/AdminLoginModal';
 import { ToastContainer, ToastMessage } from '../components/Toast';
+import { UserPlus, Sparkles, Database } from 'lucide-react';
 
 function FamilyTreeMain() {
   const { setCenter, fitView } = useReactFlow();
 
-  // State data silsilah keluarga
-  const [members, setMembers] = useState<FamilyMember[]>(INITIAL_FAMILY_MEMBERS);
+  // State data silsilah keluarga (dimulai bersih tanpa data dummy bawaan)
+  const [members, setMembers] = useState<FamilyMember[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
 
   // State antarmuka (UI)
@@ -64,22 +64,22 @@ function FamilyTreeMain() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isEditModalOpen, isAdminLoginOpen, selectedDrawerMember]);
 
-  // Muat data dari Backend API saat awal membuka aplikasi
+  // Muat data langsung dari database SQLite lokal saat awal membuka web
   useEffect(() => {
     async function loadData() {
       setIsLoadingData(true);
       try {
         const { members: remoteMembers } = await familyService.getMembers();
-        if (remoteMembers && remoteMembers.length > 0) {
+        if (remoteMembers) {
           setMembers(remoteMembers);
         }
       } catch (err) {
-        console.warn('Gagal memuat dari backend:', err);
+        console.warn('Gagal memuat dari database lokal:', err);
       } finally {
         setIsLoadingData(false);
       }
 
-      // Periksa apakah sesi admin masih aktif
+      // Periksa status login admin
       const isAdmin = await familyService.checkAdminStatus();
       if (isAdmin) {
         setIsAdminMode(true);
@@ -104,17 +104,56 @@ function FamilyTreeMain() {
     }
   }, [members, showToast]);
 
-  // Kembalikan ke data demo awal via backend API
-  const handleResetDemoData = useCallback(async () => {
+  // Impor cadangan data JSON ke database SQLite lokal
+  const handleImportData = useCallback(async (importedMembers: FamilyMember[]) => {
     try {
-      const resetData = await familyService.resetToDemo();
-      setMembers(resetData);
-      setSelectedDrawerMember(null);
-      setSelectedAId(null);
-      setSelectedBId(null);
-      showToast('Data pohon silsilah berhasil dipulihkan ke 4 generasi default.', 'info');
+      const res = await fetch('/api/members/seed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(familyService.getAdminToken() ? { Authorization: `Bearer ${familyService.getAdminToken()}` } : {}),
+        },
+        body: JSON.stringify({ members: importedMembers }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setMembers(json.data);
+          showToast(`Berhasil mengimpor ${json.data.length} anggota keluarga ke database lokal.`, 'success');
+          return;
+        }
+      }
+      showToast('Gagal mengimpor data silsilah.', 'error');
+    } catch (e) {
+      showToast('Terjadi kesalahan saat mengimpor data.', 'error');
+    }
+  }, [showToast]);
+
+  // Kosongkan seluruh data silsilah di database SQLite lokal
+  const handleClearAllData = useCallback(async () => {
+    if (!confirm('Apakah Anda yakin ingin menghapus semua data anggota silsilah di database lokal? Tindakan ini tidak dapat dibatalkan.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/members/seed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(familyService.getAdminToken() ? { Authorization: `Bearer ${familyService.getAdminToken()}` } : {}),
+        },
+      });
+
+      if (res.ok) {
+        setMembers([]);
+        setSelectedDrawerMember(null);
+        setSelectedAId(null);
+        setSelectedBId(null);
+        showToast('Database silsilah keluarga lokal telah dikosongkan.', 'info');
+      }
     } catch (err) {
-      showToast('Gagal mereset data silsilah.', 'error');
+      showToast('Gagal mengosongkan data.', 'error');
     }
   }, [showToast]);
 
@@ -173,7 +212,7 @@ function FamilyTreeMain() {
 
   // Hitung hubungan kekerabatan jika Orang A & B telah dipilih
   const relationshipResult: RelationshipResult | null = useMemo(() => {
-    if (selectedAId && selectedBId) {
+    if (selectedAId && selectedBId && members.length > 0) {
       return calculateRelationship(selectedAId, selectedBId, members);
     }
     return null;
@@ -190,11 +229,19 @@ function FamilyTreeMain() {
 
   // Operasi CRUD Admin via Backend API
   const handleOpenAddMember = () => {
+    if (!isAdminMode) {
+      setIsAdminLoginOpen(true);
+      return;
+    }
     setEditingMember(null);
     setIsEditModalOpen(true);
   };
 
   const handleOpenEditMember = (member: FamilyMember) => {
+    if (!isAdminMode) {
+      setIsAdminLoginOpen(true);
+      return;
+    }
     setEditingMember(member);
     setIsEditModalOpen(true);
   };
@@ -207,11 +254,11 @@ function FamilyTreeMain() {
       if (exists) {
         updatedMember = await familyService.updateMember(savedMember.id, savedMember);
         setMembers((prev) => prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
-        showToast(`Profil ${updatedMember.full_name} berhasil diperbarui.`, 'success');
+        showToast(`Profil ${updatedMember.full_name} berhasil diperbarui di database lokal.`, 'success');
       } else {
         updatedMember = await familyService.createMember(savedMember);
         setMembers((prev) => [...prev, updatedMember]);
-        showToast(`Anggota baru ${updatedMember.full_name} berhasil ditambahkan.`, 'success');
+        showToast(`Anggota baru ${updatedMember.full_name} berhasil disimpan ke database lokal.`, 'success');
       }
 
       if (selectedDrawerMember?.id === updatedMember.id) {
@@ -232,7 +279,7 @@ function FamilyTreeMain() {
       }
       if (selectedAId === memberId) setSelectedAId(null);
       if (selectedBId === memberId) setSelectedBId(null);
-      showToast(`${target?.full_name || 'Anggota'} berhasil dihapus dari silsilah.`, 'info');
+      showToast(`${target?.full_name || 'Anggota'} berhasil dihapus dari database lokal.`, 'info');
     } catch (e) {
       showToast('Gagal menghapus anggota.', 'error');
     }
@@ -267,7 +314,8 @@ function FamilyTreeMain() {
 
   // Metrik untuk ringkasan di banner
   const totalGenerations = useMemo(() => {
-    return Math.max(...members.map((m) => m.generation || 1), 4);
+    if (members.length === 0) return 0;
+    return Math.max(...members.map((m) => m.generation || 1), 1);
   }, [members]);
 
   const totalLiving = useMemo(() => {
@@ -280,7 +328,7 @@ function FamilyTreeMain() {
         .map((m) => m.current_city)
         .filter(Boolean) as string[]
     );
-    return Math.max(set.size, 6);
+    return set.size;
   }, [members]);
 
   const selectedA = useMemo(
@@ -318,8 +366,9 @@ function FamilyTreeMain() {
           }
         }}
         onAddNewMember={handleOpenAddMember}
-        onResetDemoData={handleResetDemoData}
+        onClearAllData={handleClearAllData}
         onExportData={handleExportData}
+        onImportData={handleImportData}
       />
 
       {/* Banner Silsilah Keluarga */}
@@ -339,7 +388,39 @@ function FamilyTreeMain() {
         {isLoadingData ? (
           <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-100/60 gap-3">
             <div className="w-8 h-8 rounded-full border-2 border-zinc-900 border-t-darkorange-700 animate-spin" />
-            <span className="text-xs font-semibold text-zinc-600">Memuat Silsilah Keluarga...</span>
+            <span className="text-xs font-semibold text-zinc-600">Memuat Silsilah dari Database Lokal...</span>
+          </div>
+        ) : members.length === 0 ? (
+          /* Empty State Bersih Tanpa Data Dummy */
+          <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-100/60 p-6 text-center">
+            <div className="max-w-md w-full bg-white p-8 rounded-3xl border border-zinc-200 shadow-soft-lg flex flex-col items-center animate-scaleIn">
+              <div className="w-16 h-16 rounded-2xl bg-zinc-900 flex items-center justify-center text-white mb-4 border border-zinc-800 shadow-xs">
+                <Database className="w-8 h-8 text-darkorange-400" />
+              </div>
+
+              <h3 className="text-lg font-bold text-zinc-900">
+                Database Silsilah Masih Bersih
+              </h3>
+              <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+                Belum ada data anggota keluarga. Silakan mulai membangun pohon silsilah keluarga Anda dengan menambahkan anggota keluarga pertama (Leluhur / Kepala Keluarga).
+              </p>
+
+              <div className="mt-6 flex flex-col sm:flex-row items-center gap-2.5 w-full">
+                <button
+                  onClick={handleOpenAddMember}
+                  className="w-full py-2.5 px-4 rounded-xl bg-darkorange-700 hover:bg-darkorange-800 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-soft-sm transition"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Tambah Anggota Pertama</span>
+                </button>
+              </div>
+
+              {!isAdminMode && (
+                <p className="text-[11px] text-zinc-400 mt-4">
+                  Klik tombol di atas untuk masuk sebagai Admin (Sandi bawaan: <code className="text-zinc-700 font-bold">admin123</code>).
+                </p>
+              )}
+            </div>
           </div>
         ) : (
           <FamilyTreeCanvasInner
@@ -371,25 +452,27 @@ function FamilyTreeMain() {
         />
 
         {/* Panel Melayang Kalkulator Kekerabatan */}
-        <RelationshipFinderBar
-          isOpen={isRelationshipMode}
-          onToggle={() => setIsRelationshipMode(!isRelationshipMode)}
-          members={members}
-          selectedA={selectedA}
-          selectedB={selectedB}
-          onSelectA={(id) => setSelectedAId(id)}
-          onSelectB={(id) => setSelectedBId(id)}
-          onSwap={() => {
-            const temp = selectedAId;
-            setSelectedAId(selectedBId);
-            setSelectedBId(temp);
-          }}
-          onClear={() => {
-            setSelectedAId(null);
-            setSelectedBId(null);
-          }}
-          result={relationshipResult}
-        />
+        {members.length >= 2 && (
+          <RelationshipFinderBar
+            isOpen={isRelationshipMode}
+            onToggle={() => setIsRelationshipMode(!isRelationshipMode)}
+            members={members}
+            selectedA={selectedA}
+            selectedB={selectedB}
+            onSelectA={(id) => setSelectedAId(id)}
+            onSelectB={(id) => setSelectedBId(id)}
+            onSwap={() => {
+              const temp = selectedAId;
+              setSelectedAId(selectedBId);
+              setSelectedBId(temp);
+            }}
+            onClear={() => {
+              setSelectedAId(null);
+              setSelectedBId(null);
+            }}
+            result={relationshipResult}
+          />
+        )}
       </main>
 
       {/* Dialog Modal Ubah / Tambah Anggota */}
@@ -400,6 +483,7 @@ function FamilyTreeMain() {
         allMembers={members}
         onSave={handleSaveMember}
         onDelete={handleDeleteMember}
+        defaultGeneration={members.length === 0 ? 1 : 2}
       />
 
       {/* Dialog Modal Masuk Admin */}
@@ -408,7 +492,7 @@ function FamilyTreeMain() {
         onClose={() => setIsAdminLoginOpen(false)}
         onSuccess={() => {
           setIsAdminMode(true);
-          showToast('Mode Admin aktif! Anda dapat menambah, mengubah, dan menghapus silsilah.', 'success');
+          showToast('Mode Admin aktif! Anda dapat menambah dan mengelola silsilah.', 'success');
         }}
       />
     </div>

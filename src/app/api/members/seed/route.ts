@@ -8,7 +8,7 @@ function checkAdminAuth(req: NextRequest): boolean {
   return verifyAdminToken(cookieToken || headerToken);
 }
 
-// POST /api/members/seed - Mengatur ulang SQLite lokal ke 15 anggota 4 generasi default
+// POST /api/members/seed - Mengosongkan data atau mengimpor data silsilah
 export async function POST(req: NextRequest) {
   try {
     if (!checkAdminAuth(req)) {
@@ -18,17 +18,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const resetMembers = await localDb.resetDemoData();
+    const body = await req.json().catch(() => ({}));
 
+    // Jika ada payload anggota untuk diimpor
+    if (Array.isArray(body.members)) {
+      const imported = await localDb.importMembers(body.members);
+      return NextResponse.json({
+        success: true,
+        message: `Berhasil mengimpor ${imported.length} anggota keluarga ke database lokal.`,
+        source: 'sqlite_local',
+        data: imported,
+      });
+    }
+
+    // Default: Kosongkan database
+    await localDb.clearAllMembers();
     return NextResponse.json({
       success: true,
-      message: 'Berhasil mengatur ulang database SQLite lokal ke data demo 4 generasi.',
+      message: 'Database silsilah lokal berhasil dikosongkan.',
       source: 'sqlite_local',
-      data: resetMembers,
+      data: [],
     });
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, message: 'Gagal mereset database lokal.', error: error.message },
+      { success: false, message: 'Gagal memproses permintaan data.', error: error.message },
       { status: 500 }
     );
   }
