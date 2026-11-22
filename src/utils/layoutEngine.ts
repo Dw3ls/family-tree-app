@@ -116,17 +116,26 @@ export function generateTreeLayout(
 
   // Node React Flow
   const nodes: Node<FamilyNodeData>[] = members.map((member) => {
-    const pos = positions.get(member.id) || { x: 100, y: 100 };
+    // Prioritaskan koordinat kustom hasil drag Admin jika ada
+    const pos =
+      member.custom_x !== undefined && member.custom_y !== undefined
+        ? { x: member.custom_x, y: member.custom_y }
+        : positions.get(member.id) || { x: 100, y: 100 };
+
     const isSelectedA = selectedAId === member.id;
     const isSelectedB = selectedBId === member.id;
     const isHighlighted = isSelectedA || isSelectedB || pathSet.has(member.id);
-    const isDimmed = hasHighlight && !isHighlighted;
+
+    // HANYA redupkan jika KEDUA orang A dan B sudah dipilih dan jalur kekerabatan sudah dihitung.
+    // Saat baru memilih Orang A, biarkan semua anggota lain tetap terang dan interaktif agar mudah memilih Orang B!
+    const isDimmed = Boolean(selectedAId && selectedBId && hasHighlight && !isHighlighted);
     const gen = genMap.get(member.id) || 1;
 
     return {
       id: member.id,
       type: 'familyMember',
       position: pos,
+      draggable: isAdminMode,
       data: {
         member,
         isHighlighted,

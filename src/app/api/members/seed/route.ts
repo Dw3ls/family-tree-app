@@ -46,3 +46,22 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// PUT /api/members/seed - Reset seluruh posisi kustom kembali ke layout otomatis
+export async function PUT(req: NextRequest) {
+  try {
+    if (!checkAdminAuth(req)) {
+      return NextResponse.json(
+        { success: false, message: 'Akses ditolak. Diperlukan sesi Admin terautentikasi.' },
+        { status: 401 }
+      );
+    }
+    await localDb.resetAllCustomPositions();
+    return NextResponse.json({ success: true, message: 'Posisi silsilah berhasil diatur ulang ke tata letak otomatis.' });
+  } catch (error: any) {
+    return NextResponse.json(
+      { success: false, message: 'Gagal mereset posisi.', error: error.message },
+      { status: 500 }
+    );
+  }
+}

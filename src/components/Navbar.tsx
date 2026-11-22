@@ -13,6 +13,7 @@ import {
   Trash2,
   Download,
   UploadCloud,
+  LayoutGrid,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -28,6 +29,7 @@ interface NavbarProps {
   onClearAllData: () => void;
   onExportData: () => void;
   onImportData: (members: FamilyMember[]) => void;
+  onResetLayout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -43,6 +45,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onClearAllData,
   onExportData,
   onImportData,
+  onResetLayout,
 }) => {
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -135,6 +138,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onChange={handleJsonUpload}
                 className="hidden"
               />
+
+              {onResetLayout && members.some((m) => m.custom_x !== undefined) && (
+                <button
+                  onClick={onResetLayout}
+                  className="p-2 rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border border-zinc-200 transition flex items-center gap-1.5 text-xs font-semibold"
+                  title="Kembalikan posisi silsilah ke tata letak geometris otomatis"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 text-darkorange-700" />
+                  <span className="hidden xl:inline">Tata Ulang Otomatis</span>
+                </button>
+              )}
             </>
           )}
 

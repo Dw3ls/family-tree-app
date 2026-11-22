@@ -60,10 +60,20 @@ export async function initDb() {
       spouse_id TEXT,
       generation INTEGER DEFAULT 1,
       family_position TEXT,
+      custom_x REAL,
+      custom_y REAL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);
+
+  // Migrasi kolom posisi custom jika tabel sudah ada sebelumnya
+  try {
+    await client.execute(`ALTER TABLE family_members ADD COLUMN custom_x REAL;`);
+  } catch (e) {}
+  try {
+    await client.execute(`ALTER TABLE family_members ADD COLUMN custom_y REAL;`);
+  } catch (e) {}
 
   // 2. Buat Indeks Pencarian & Traversal Silsilah
   await client.execute(`CREATE INDEX IF NOT EXISTS idx_members_father ON family_members(father_id);`);
@@ -93,6 +103,8 @@ function mapRowToMember(row: any): FamilyMember {
     spouse_id: row.spouse_id ? String(row.spouse_id) : null,
     generation: Number(row.generation) || 1,
     family_position: row.family_position ? String(row.family_position) : undefined,
+    custom_x: row.custom_x !== null && row.custom_x !== undefined ? Number(row.custom_x) : undefined,
+    custom_y: row.custom_y !== null && row.custom_y !== undefined ? Number(row.custom_y) : undefined,
     created_at: row.created_at ? String(row.created_at) : undefined,
     updated_at: row.updated_at ? String(row.updated_at) : undefined,
   };
@@ -133,8 +145,8 @@ export const localDb = {
         INSERT OR REPLACE INTO family_members (
           id, full_name, nickname, gender, birth_place, birth_date, death_date,
           origin_city, current_city, bio, photo_url, father_id, mother_id, spouse_id,
-          generation, family_position, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+          generation, family_position, custom_x, custom_y, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       `,
       args: [
         member.id,
@@ -153,6 +165,8 @@ export const localDb = {
         member.spouse_id || null,
         member.generation || 1,
         member.family_position || null,
+        member.custom_x !== undefined ? member.custom_x : null,
+        member.custom_y !== undefined ? member.custom_y : null,
         now,
         now,
       ],
@@ -188,6 +202,8 @@ export const localDb = {
           spouse_id = ?,
           generation = ?,
           family_position = ?,
+          custom_x = ?,
+          custom_y = ?,
           updated_at = ?
         WHERE id = ?;
       `,
@@ -207,12 +223,22 @@ export const localDb = {
         merged.spouse_id || null,
         merged.generation || 1,
         merged.family_position || null,
+        merged.custom_x !== undefined ? merged.custom_x : null,
+        merged.custom_y !== undefined ? merged.custom_y : null,
         merged.updated_at,
         id,
       ],
     });
 
     return merged;
+  },
+
+  // Tata ulang semua posisi custom kembali ke tata letak geometris otomatis
+  resetAllCustomPositions: async (): Promise<boolean> => {
+    await initDb();
+    const client = getDbClient();
+    await client.execute(`UPDATE family_members SET custom_x = NULL, custom_y = NULL;`);
+    return true;
   },
 
   // Hapus anggota & bersihkan referensi relasi

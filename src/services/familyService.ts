@@ -160,6 +160,57 @@ export const familyService = {
     return Boolean(json.success);
   },
 
+  // 4b. Memperbarui posisi koordinat kustom anggota setelah di-drag oleh Admin
+  updateMemberPosition: async (id: string, custom_x: number, custom_y: number): Promise<void> => {
+    const token = familyService.getAdminToken();
+
+    // Perbarui cache lokal seketika
+    if (typeof window !== 'undefined') {
+      try {
+        const current = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+        const updated = current.map((m: any) =>
+          m.id === id ? { ...m, custom_x, custom_y } : m
+        );
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+    }
+
+    try {
+      await fetch(`/api/members/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ custom_x, custom_y }),
+      });
+    } catch (e) {
+      console.warn('Gagal menyimpan koordinat posisi ke server:', e);
+    }
+  },
+
+  // 4c. Tata ulang semua posisi custom kembali ke default geometris
+  resetAllPositions: async (): Promise<void> => {
+    const token = familyService.getAdminToken();
+    if (typeof window !== 'undefined') {
+      try {
+        const current = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+        const updated = current.map((m: any) => ({ ...m, custom_x: undefined, custom_y: undefined }));
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+    }
+
+    try {
+      await fetch('/api/members/seed', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+    } catch (e) {}
+  },
+
   // 5. Mengatur ulang ke data demo (POST /api/members/seed)
   resetToDemo: async (): Promise<FamilyMember[]> => {
     const token = familyService.getAdminToken();

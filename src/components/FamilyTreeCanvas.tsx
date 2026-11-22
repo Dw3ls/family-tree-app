@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
-  useReactFlow,
   Panel,
   BackgroundVariant,
   Node,
+  useNodesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { FamilyMemberNode } from './FamilyMemberNode';
@@ -29,19 +29,42 @@ interface FamilyTreeCanvasProps {
   selectedA: FamilyMember | null;
   selectedB: FamilyMember | null;
   onResetView: () => void;
+  isAdminMode?: boolean;
+  onUpdateNodePosition?: (id: string, x: number, y: number) => void;
 }
 
 export const FamilyTreeCanvasInner: React.FC<FamilyTreeCanvasProps> = ({
   nodes,
   edges,
   isRelationshipMode,
+  isAdminMode = false,
+  onUpdateNodePosition,
 }) => {
+  const [currentNodes, setNodes, onNodesChange] = useNodesState(nodes);
+
+  useEffect(() => {
+    setNodes(nodes);
+  }, [nodes, setNodes]);
+
+  const handleNodeDragStop = useCallback(
+    (_event: any, node: any) => {
+      if (!isAdminMode || !onUpdateNodePosition) return;
+      onUpdateNodePosition(node.id, Math.round(node.position.x), Math.round(node.position.y));
+    },
+    [isAdminMode, onUpdateNodePosition]
+  );
+
   return (
     <div className="relative w-full h-full min-h-[640px] bg-zinc-100/60 select-none overflow-hidden">
       <ReactFlow
-        nodes={nodes}
+        nodes={currentNodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        onNodesChange={isAdminMode ? onNodesChange : undefined}
+        onNodeDragStop={handleNodeDragStop}
+        nodesDraggable={isAdminMode}
+        nodesConnectable={false}
+        elementsSelectable={true}
         fitView
         fitViewOptions={{ padding: 0.15, duration: 600 }}
         minZoom={0.2}

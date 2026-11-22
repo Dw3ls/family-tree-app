@@ -3,7 +3,7 @@
 import React, { memo } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { FamilyNodeData } from '../utils/layoutEngine';
-import { Heart, Sparkles, Pencil, Trash2, MapPin } from 'lucide-react';
+import { Heart, Sparkles, Pencil, Trash2, MapPin, GripHorizontal } from 'lucide-react';
 
 export const FamilyMemberNode = memo(({ data }: { data: FamilyNodeData }) => {
   const {
@@ -43,9 +43,9 @@ export const FamilyMemberNode = memo(({ data }: { data: FamilyNodeData }) => {
   return (
     <div
       onClick={handleClick}
-      className={`relative group cursor-pointer transition-all duration-200 select-none ${
-        isDimmed ? 'opacity-25 grayscale-[70%] scale-95 pointer-events-none' : 'opacity-100'
-      }`}
+      className={`relative group transition-all duration-200 select-none ${
+        isDimmed ? 'opacity-35 grayscale-[50%] scale-95' : 'opacity-100'
+      } ${isAdminMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'}`}
       style={{ width: '180px' }}
     >
       {/* React Flow Handles */}
@@ -74,6 +74,13 @@ export const FamilyMemberNode = memo(({ data }: { data: FamilyNodeData }) => {
         className="!w-2 !h-2 !bg-darkorange-700 !border-2 !border-white !opacity-0 group-hover:!opacity-100 transition-opacity"
       />
 
+      {/* Indikator Mode Kekerabatan */}
+      {isRelationshipMode && !isSelectedA && !isSelectedB && (
+        <div className="absolute -top-7 left-1/2 -translate-x-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white text-[10px] font-bold px-2 py-0.5 rounded-full pointer-events-none shadow-sm whitespace-nowrap border border-zinc-700">
+          Klik untuk pilih
+        </div>
+      )}
+
       {/* Indikator Pilihan Hubungan (Orang A / Orang B) */}
       {isSelectedA && (
         <div className="absolute -top-7 left-1/2 -translate-x-1/2 z-20 bg-zinc-900 border border-zinc-700 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full shadow-md flex items-center gap-1">
@@ -98,6 +105,15 @@ export const FamilyMemberNode = memo(({ data }: { data: FamilyNodeData }) => {
             : 'border border-zinc-200/90 hover:border-zinc-400 hover:shadow-soft-md'
         }`}
       >
+        {/* Indikator Drag untuk Admin */}
+        {isAdminMode && (
+          <div
+            title="Tahan & geser untuk mengubah posisi di bagan"
+            className="absolute top-2 left-2 text-zinc-300 group-hover:text-zinc-600 transition-colors"
+          >
+            <GripHorizontal className="w-3.5 h-3.5" />
+          </div>
+        )}
         {/* Label Generasi */}
         <div className="absolute top-2.5 right-2.5 text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-md bg-zinc-100 text-zinc-600 border border-zinc-200/60">
           {generationLabel}

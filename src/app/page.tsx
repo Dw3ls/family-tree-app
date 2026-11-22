@@ -222,9 +222,31 @@ function FamilyTreeMain() {
     if (relationshipResult?.path) {
       return relationshipResult.path;
     }
-    if (selectedAId) return [selectedAId];
     return [];
-  }, [relationshipResult, selectedAId]);
+  }, [relationshipResult]);
+
+  // Perbarui posisi koordinat kustom anggota setelah di-drag oleh Admin
+  const handleUpdateNodePosition = useCallback(
+    async (id: string, x: number, y: number) => {
+      setMembers((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, custom_x: x, custom_y: y } : m))
+      );
+      await familyService.updateMemberPosition(id, x, y);
+    },
+    []
+  );
+
+  // Tata ulang semua posisi custom kembali ke default geometris otomatis
+  const handleResetLayout = useCallback(async () => {
+    if (!isAdminMode) return;
+    if (confirm('Kembalikan posisi semua anggota silsilah ke tata letak geometris otomatis?')) {
+      setMembers((prev) =>
+        prev.map((m) => ({ ...m, custom_x: undefined, custom_y: undefined }))
+      );
+      await familyService.resetAllPositions();
+      showToast('Posisi silsilah berhasil diatur ulang ke tata letak otomatis.', 'info');
+    }
+  }, [isAdminMode, showToast]);
 
   // Operasi CRUD Admin via Backend API
   const handleOpenAddMember = () => {
@@ -370,6 +392,7 @@ function FamilyTreeMain() {
         onClearAllData={handleClearAllData}
         onExportData={handleExportData}
         onImportData={handleImportData}
+        onResetLayout={handleResetLayout}
       />
 
       {/* Banner Silsilah Keluarga */}
@@ -432,6 +455,8 @@ function FamilyTreeMain() {
             selectedA={selectedA}
             selectedB={selectedB}
             onResetView={handleResetView}
+            isAdminMode={isAdminMode}
+            onUpdateNodePosition={handleUpdateNodePosition}
           />
         )}
 

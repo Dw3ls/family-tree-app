@@ -65,6 +65,8 @@ export async function POST(req: NextRequest) {
       spouse_id: payload.spouse_id || null,
       generation: Number(payload.generation) || 1,
       family_position: payload.family_position || undefined,
+      custom_x: payload.custom_x !== undefined ? Number(payload.custom_x) : undefined,
+      custom_y: payload.custom_y !== undefined ? Number(payload.custom_y) : undefined,
     };
 
     const saved = await localDb.createMember(newMember);

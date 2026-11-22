@@ -17,6 +17,8 @@ export interface FamilyMember {
   spouse_id?: string | null;
   generation?: number;
   family_position?: string;
+  custom_x?: number;
+  custom_y?: number;
   created_at?: string;
   updated_at?: string;
 }
