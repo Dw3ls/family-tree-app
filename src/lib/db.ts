@@ -8,6 +8,19 @@ let clientInstance: Client | null = null;
 function getDbClient(): Client {
   if (clientInstance) return clientInstance;
 
+  // Jika ada URL cloud (misal Turso libSQL untuk deployment di Vercel/Cloud)
+  const cloudDbUrl = process.env.TURSO_DATABASE_URL || process.env.DATABASE_URL;
+  const cloudAuthToken = process.env.TURSO_AUTH_TOKEN;
+
+  if (cloudDbUrl && (cloudDbUrl.startsWith('libsql://') || cloudDbUrl.startsWith('https://'))) {
+    clientInstance = createClient({
+      url: cloudDbUrl,
+      authToken: cloudAuthToken,
+    });
+    return clientInstance;
+  }
+
+  // Standar: SQLite lokal berbasis file di folder data/family.db
   const dataDir = path.resolve(process.cwd(), 'data');
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
