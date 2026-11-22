@@ -9,14 +9,15 @@ function checkAdminAuth(req: NextRequest): boolean {
   return verifyAdminToken(cookieToken || headerToken);
 }
 
-// GET /api/members - Membaca seluruh silsilah keluarga dari SQLite Lokal
+// GET /api/members - Membaca seluruh silsilah keluarga dari SQLite Lokal / Turso Cloud
 export async function GET() {
   try {
+    const isTurso = Boolean(process.env.TURSO_DATABASE_URL);
     const members = await localDb.getAllMembers();
     return NextResponse.json({
       success: true,
-      source: 'sqlite_local',
-      database: 'data/family.db',
+      source: isTurso ? 'turso_cloud' : 'sqlite_local',
+      database: isTurso ? 'Turso Cloud (AWS Singapore)' : 'data/family.db',
       data: members,
     });
   } catch (error: any) {
