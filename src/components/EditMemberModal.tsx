@@ -533,7 +533,7 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
                 className="px-5 py-2 rounded-xl bg-darkorange-700 hover:bg-darkorange-800 text-white text-xs font-bold shadow-soft-sm flex items-center gap-1.5 transition"
               >
                 <Save className="w-3.5 h-3.5" />
-                Simpan Anggota
+                <span>{isEditing ? 'Simpan Perubahan' : 'Simpan Anggota Baru'}</span>
               </button>
             </div>
           </div>

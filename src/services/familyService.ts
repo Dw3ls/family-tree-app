@@ -31,8 +31,8 @@ export const familyService = {
 
       if (res.ok) {
         const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          // Sinkronkan salinan cadangan ke localStorage
+        // Selalu prioritaskan data dari server, bahkan jika array kosong []
+        if (json.success && Array.isArray(json.data)) {
           if (typeof window !== 'undefined') {
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(json.data));
           }
@@ -43,13 +43,13 @@ export const familyService = {
       console.warn('Gagal memanggil API backend, beralih ke cache lokal:', e);
     }
 
-    // Fallback cadangan dari localStorage
+    // Fallback cadangan dari localStorage hanya jika koneksi ke server gagal total
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             return { members: parsed, source: 'local_cache' };
           }
         }
@@ -58,84 +58,106 @@ export const familyService = {
       }
     }
 
-    return { members: INITIAL_FAMILY_MEMBERS, source: 'default_seed' };
+    return { members: [], source: 'empty' };
   },
 
   // 2. Menambah anggota keluarga baru (POST /api/members)
   createMember: async (member: FamilyMember): Promise<FamilyMember> => {
     const token = familyService.getAdminToken();
 
-    try {
-      const res = await fetch('/api/members', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(member),
-      });
+    const res = await fetch('/api/members', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(member),
+    });
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          return json.data;
-        }
-      }
-    } catch (e) {
-      console.warn('API error saat createMember:', e);
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.message || `Gagal menyimpan anggota ke server (${res.status})`);
     }
 
-    return member;
+    const json = await res.json();
+    if (!json.success || !json.data) {
+      throw new Error(json.message || 'Respons server tidak valid.');
+    }
+
+    // Sinkronkan cache lokal
+    if (typeof window !== 'undefined') {
+      try {
+        const current = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify([...current, json.data]));
+      } catch (e) {}
+    }
+
+    return json.data;
   },
 
   // 3. Memperbarui profil anggota (PUT /api/members/[id])
   updateMember: async (id: string, updates: Partial<FamilyMember>): Promise<FamilyMember> => {
     const token = familyService.getAdminToken();
 
-    try {
-      const res = await fetch(`/api/members/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(updates),
-      });
+    const res = await fetch(`/api/members/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(updates),
+    });
 
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data) {
-          return json.data;
-        }
-      }
-    } catch (e) {
-      console.warn('API error saat updateMember:', e);
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.message || `Gagal memperbarui anggota (${res.status})`);
     }
 
-    return { id, ...updates } as FamilyMember;
+    const json = await res.json();
+    if (!json.success || !json.data) {
+      throw new Error(json.message || 'Respons server tidak valid.');
+    }
+
+    // Sinkronkan cache lokal
+    if (typeof window !== 'undefined') {
+      try {
+        const current = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+        const updated = current.map((m: any) => (m.id === id ? json.data : m));
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
+      } catch (e) {}
+    }
+
+    return json.data;
   },
 
   // 4. Menghapus anggota (DELETE /api/members/[id])
   deleteMember: async (id: string): Promise<boolean> => {
     const token = familyService.getAdminToken();
 
-    try {
-      const res = await fetch(`/api/members/${id}`, {
-        method: 'DELETE',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
+    const res = await fetch(`/api/members/${id}`, {
+      method: 'DELETE',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
 
-      if (res.ok) {
-        const json = await res.json();
-        return Boolean(json.success);
-      }
-    } catch (e) {
-      console.warn('API error saat deleteMember:', e);
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.message || `Gagal menghapus anggota (${res.status})`);
     }
 
-    return true;
+    const json = await res.json();
+
+    // Sinkronkan cache lokal
+    if (typeof window !== 'undefined') {
+      try {
+        const current = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+        const filtered = current.filter((m: any) => m.id !== id);
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
+      } catch (e) {}
+    }
+
+    return Boolean(json.success);
   },
 
   // 5. Mengatur ulang ke data demo (POST /api/members/seed)

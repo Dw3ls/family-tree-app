@@ -168,6 +168,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
+          {/* Indikator Status Autosave Cloud */}
+          <div
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-700 text-[11px] font-semibold"
+            title="Setiap penambahan, pengeditan, atau penghapusan anggota otomatis tersimpan langsung ke database cloud"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="hidden lg:inline">Autosave Cloud</span>
+          </div>
+
           {/* Mode Admin (Kunci / Buka) */}
           {isAdminMode ? (
             <div className="flex items-center gap-1">

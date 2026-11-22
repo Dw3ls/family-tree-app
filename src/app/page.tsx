@@ -254,18 +254,19 @@ function FamilyTreeMain() {
       if (exists) {
         updatedMember = await familyService.updateMember(savedMember.id, savedMember);
         setMembers((prev) => prev.map((m) => (m.id === updatedMember.id ? updatedMember : m)));
-        showToast(`Profil ${updatedMember.full_name} berhasil diperbarui di database lokal.`, 'success');
+        showToast(`✓ Perubahan profil ${updatedMember.full_name} berhasil disimpan ke database.`, 'success');
       } else {
         updatedMember = await familyService.createMember(savedMember);
         setMembers((prev) => [...prev, updatedMember]);
-        showToast(`Anggota baru ${updatedMember.full_name} berhasil disimpan ke database lokal.`, 'success');
+        showToast(`✓ Anggota baru ${updatedMember.full_name} berhasil disimpan ke database.`, 'success');
       }
 
       if (selectedDrawerMember?.id === updatedMember.id) {
         setSelectedDrawerMember(updatedMember);
       }
-    } catch (e) {
-      showToast('Gagal menyimpan data ke database lokal.', 'error');
+    } catch (e: any) {
+      console.error('Error saat menyimpan anggota:', e);
+      showToast(e.message || 'Gagal menyimpan data ke database. Pastikan sesi Admin aktif.', 'error');
     }
   };
 
@@ -279,9 +280,10 @@ function FamilyTreeMain() {
       }
       if (selectedAId === memberId) setSelectedAId(null);
       if (selectedBId === memberId) setSelectedBId(null);
-      showToast(`${target?.full_name || 'Anggota'} berhasil dihapus dari database lokal.`, 'info');
-    } catch (e) {
-      showToast('Gagal menghapus anggota.', 'error');
+      showToast(`✓ ${target?.full_name || 'Anggota'} berhasil dihapus dari database.`, 'info');
+    } catch (e: any) {
+      console.error('Error saat menghapus anggota:', e);
+      showToast(e.message || 'Gagal menghapus anggota dari database. Pastikan sesi Admin aktif.', 'error');
     }
   };
 
