@@ -15,7 +15,7 @@ import '@xyflow/react/dist/style.css';
 import { FamilyMemberNode } from './FamilyMemberNode';
 import { FamilyNodeData } from '../utils/layoutEngine';
 import { FamilyMember } from '../types/family';
-import { Layers, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 const nodeTypes = {
   familyMember: FamilyMemberNode,
@@ -29,35 +29,17 @@ interface FamilyTreeCanvasProps {
   selectedA: FamilyMember | null;
   selectedB: FamilyMember | null;
   onResetView: () => void;
-  activeGenFilter: number | null;
-  setActiveGenFilter: (gen: number | null) => void;
 }
 
 export const FamilyTreeCanvasInner: React.FC<FamilyTreeCanvasProps> = ({
   nodes,
   edges,
   isRelationshipMode,
-  activeGenFilter,
-  setActiveGenFilter,
 }) => {
-  const filteredNodes = useMemo(() => {
-    if (activeGenFilter === null) return nodes;
-    return nodes.map((node) => {
-      const isMatch = node.data.member.generation === activeGenFilter;
-      return {
-        ...node,
-        data: {
-          ...node.data,
-          isDimmed: !isMatch,
-        },
-      };
-    });
-  }, [nodes, activeGenFilter]);
-
   return (
     <div className="relative w-full h-full min-h-[640px] bg-zinc-100/60 select-none overflow-hidden">
       <ReactFlow
-        nodes={filteredNodes}
+        nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
@@ -97,49 +79,17 @@ export const FamilyTreeCanvasInner: React.FC<FamilyTreeCanvasProps> = ({
           maskColor="rgba(244, 244, 245, 0.7)"
         />
 
-        {/* Panel Filter Generasi Kiri Atas */}
-        <Panel position="top-left" className="!m-4 flex flex-col gap-2">
-          {/* Tab Pilihan Generasi */}
-          <div className="bg-white p-1.5 rounded-2xl shadow-soft-md border border-zinc-200 flex items-center gap-1">
-            <div className="flex items-center gap-1.5 px-2 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
-              <Layers className="w-3.5 h-3.5 text-darkorange-700" />
-              <span className="hidden sm:inline">Generasi</span>
-            </div>
-            <button
-              onClick={() => setActiveGenFilter(null)}
-              className={`px-2.5 py-1 rounded-xl text-xs font-bold transition ${
-                activeGenFilter === null
-                  ? 'bg-zinc-900 text-white shadow-xs'
-                  : 'text-zinc-600 hover:bg-zinc-100'
-              }`}
-            >
-              Semua
-            </button>
-            {[1, 2, 3, 4].map((g) => (
-              <button
-                key={g}
-                onClick={() => setActiveGenFilter(activeGenFilter === g ? null : g)}
-                className={`px-2.5 py-1 rounded-xl text-xs font-bold transition ${
-                  activeGenFilter === g
-                    ? 'bg-darkorange-700 text-white shadow-xs'
-                    : 'text-zinc-600 hover:bg-zinc-100'
-                }`}
-              >
-                Gen {g}
-              </button>
-            ))}
-          </div>
-
-          {/* Notifikasi Mode Cek Kekerabatan */}
-          {isRelationshipMode && (
+        {/* Notifikasi Mode Cek Kekerabatan Kiri Atas */}
+        {isRelationshipMode && (
+          <Panel position="top-left" className="!m-4">
             <div className="bg-zinc-900 text-white px-3.5 py-2 rounded-2xl shadow-soft-md flex items-center gap-2 text-xs font-medium border border-zinc-700">
               <Sparkles className="w-4 h-4 text-darkorange-400" />
               <span>
                 Pilih 2 anggota pada bagan pohon untuk menghitung hubungan kekerabatan
               </span>
             </div>
-          )}
-        </Panel>
+          </Panel>
+        )}
 
         {/* Legenda Bagan Silsilah Bawah */}
         <Panel position="bottom-center" className="!mb-3 hidden sm:flex">

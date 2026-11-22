@@ -28,7 +28,6 @@ function FamilyTreeMain() {
   const [isRelationshipMode, setIsRelationshipMode] = useState(false);
   const [selectedAId, setSelectedAId] = useState<string | null>(null);
   const [selectedBId, setSelectedBId] = useState<string | null>(null);
-  const [activeGenFilter, setActiveGenFilter] = useState<number | null>(null);
 
   // State Mode Admin
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -433,8 +432,6 @@ function FamilyTreeMain() {
             selectedA={selectedA}
             selectedB={selectedB}
             onResetView={handleResetView}
-            activeGenFilter={activeGenFilter}
-            setActiveGenFilter={setActiveGenFilter}
           />
         )}
 
