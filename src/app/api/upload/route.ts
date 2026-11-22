@@ -46,33 +46,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Buat direktori penyimpanan lokal public/uploads jika belum ada
-    const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    // Coba simpan ke disk fisik jika filesystem writable (Lokal / VPS)
+    try {
+      const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const rawExt = file.name.split('.').pop() || 'jpg';
+      const cleanExt = rawExt.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const fileName = `avatar-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
+      const filePath = path.resolve(uploadsDir, fileName);
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+      fs.writeFileSync(filePath, buffer);
+
+      const publicUrl = `/uploads/${fileName}`;
+
+      return NextResponse.json({
+        success: true,
+        photoUrl: publicUrl,
+        fileName,
+        source: 'local_disk',
+      });
+    } catch (fsError: any) {
+      // Fallback untuk lingkungan Serverless / Vercel (read-only filesystem)
+      // Konversi menjadi Data URL Base64 yang tersimpan langsung di Turso Cloud / SQLite
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const mimeType = file.type || 'image/jpeg';
+      const base64 = buffer.toString('base64');
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+
+      return NextResponse.json({
+        success: true,
+        photoUrl: dataUrl,
+        fileName: file.name,
+        source: 'serverless_base64',
+      });
     }
-
-    const rawExt = file.name.split('.').pop() || 'jpg';
-    const cleanExt = rawExt.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const fileName = `avatar-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${cleanExt}`;
-    const filePath = path.resolve(uploadsDir, fileName);
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-    fs.writeFileSync(filePath, buffer);
-
-    // Path yang dapat diakses publik dari peramban
-    const publicUrl = `/uploads/${fileName}`;
-
-    return NextResponse.json({
-      success: true,
-      photoUrl: publicUrl,
-      fileName,
-      source: 'local_disk',
-    });
   } catch (error: any) {
     console.error('Error saat upload foto profil:', error);
     return NextResponse.json(
-      { success: false, message: 'Gagal menyimpan berkas foto ke disk lokal.' },
+      { success: false, message: 'Gagal memproses berkas foto.' },
       { status: 500 }
     );
   }

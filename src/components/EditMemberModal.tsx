@@ -93,6 +93,57 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
   );
   const potentialSpouses = allMembers.filter((m) => m.id !== member?.id);
 
+  // Kompresi foto sebelum diunggah agar hemat bandwidth dan penyimpanan
+  const compressImage = async (file: File): Promise<File> => {
+    if (!file.type.startsWith('image/') || file.type === 'image/gif') return file;
+
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const maxDim = 600;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return resolve(file);
+
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return resolve(file);
+              const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            'image/jpeg',
+            0.82
+          );
+        };
+        img.onerror = () => resolve(file);
+      };
+      reader.onerror = () => resolve(file);
+    });
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -100,7 +151,8 @@ export const EditMemberModal: React.FC<EditMemberModalProps> = ({
     setUploadError(null);
     setIsUploading(true);
     try {
-      const uploadedUrl = await familyService.uploadAvatar(file);
+      const compressed = await compressImage(file);
+      const uploadedUrl = await familyService.uploadAvatar(compressed);
       if (uploadedUrl) {
         setPhotoUrl(uploadedUrl);
       } else {
