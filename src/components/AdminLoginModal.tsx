@@ -87,7 +87,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                   setPassword(e.target.value);
                   setError(false);
                 }}
-                placeholder="Masukkan kata sandi (demo: admin123)"
+                placeholder="Masukkan kata sandi admin"
                 className="w-full text-xs pl-9 pr-9 py-2.5 rounded-xl border border-zinc-300 focus:ring-1 focus:ring-zinc-900 outline-none font-medium"
               />
               <button
@@ -102,14 +102,9 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             {error && (
               <p className="text-[11px] text-red-600 mt-1.5 flex items-center gap-1 font-semibold">
                 <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                Kata sandi salah. Sandi bawaan adalah &quot;admin123&quot;.
+                Kata sandi salah. Silakan coba lagi.
               </p>
             )}
-          </div>
-
-          <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-2.5 text-[11px] text-zinc-700 flex items-center justify-between">
-            <span>Sandi Akses Bawaan:</span>
-            <code className="bg-zinc-200 px-2 py-0.5 rounded font-mono font-bold text-zinc-900">admin123</code>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

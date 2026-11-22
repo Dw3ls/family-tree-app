@@ -417,7 +417,7 @@ function FamilyTreeMain() {
 
               {!isAdminMode && (
                 <p className="text-[11px] text-zinc-400 mt-4">
-                  Klik tombol di atas untuk masuk sebagai Admin (Sandi bawaan: <code className="text-zinc-700 font-bold">admin123</code>).
+                  Masuk sebagai Admin terlebih dahulu untuk mulai menambahkan data silsilah.
                 </p>
               )}
             </div>

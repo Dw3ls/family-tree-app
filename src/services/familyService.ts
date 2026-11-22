@@ -191,12 +191,6 @@ export const familyService = {
       console.warn('API error saat loginAdmin:', e);
     }
 
-    // Fallback validasi lokal
-    if (password === 'admin123' || password === 'admin') {
-      familyService.setAdminToken('admin_auth_local');
-      return true;
-    }
-
     return false;
   },
 
